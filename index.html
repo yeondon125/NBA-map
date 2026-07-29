@@ -53,6 +53,14 @@
     :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
     @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 
+    /* ===== Utility bar (practice-site notice) ===== */
+    .utility-bar {
+      background: var(--ink); color: var(--canvas);
+      font-size: 12px; font-weight: 500; letter-spacing: 0.2px;
+      text-align: center; padding: 8px 16px;
+    }
+    .utility-bar strong { font-weight: 600; }
+
     /* ===== Primary Nav ===== */
     nav.menu {
       position: sticky; top: 0; z-index: 50;
@@ -252,7 +260,7 @@
     .auth-help { color: var(--mute); font-size: 14px; line-height: 1.5; margin-top: 16px; }
 
     /* player CRUD */
-    .player-actions { display: flex; gap: 6px; }
+    .player-actions { display: none; gap: 6px; }
     body.authed .player-actions { display: flex; }
     .player-actions button { background: var(--cloud); border: none; color: var(--ink); width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 14px; line-height: 1; }
     .player-actions button:hover { background: var(--hairline-soft); }
@@ -269,7 +277,7 @@
     .player-edit .e-cancel { background: var(--cloud); border: none; color: var(--ink); border-radius: 30px; padding: 6px 14px; font-size: 14px; cursor: pointer; }
 
     /* add player form */
-    .add-player { display: block; margin-top: 16px; padding-top: 16px; box-shadow: inset 0 1px 0 var(--hairline-soft); }
+    .add-player { display: none; margin-top: 16px; padding-top: 16px; box-shadow: inset 0 1px 0 var(--hairline-soft); }
     body.authed .add-player { display: block; }
     .add-player h5 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.3px; color: var(--mute); margin-bottom: 10px; }
     .add-player form { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -280,7 +288,7 @@
     .add-player .a-pos { width: 68px; }
     .add-player .a-add { background: var(--ink); color: var(--canvas); border: none; border-radius: 30px; padding: 8px 18px; font-size: 14px; font-weight: 500; cursor: pointer; }
     .add-player .a-add:hover { background: var(--charcoal); }
-    .roster-hint { display: none; font-size: 14px; color: var(--mute); margin-top: 12px; text-align: center; }
+    .roster-hint { display: block; font-size: 14px; color: var(--mute); margin-top: 12px; text-align: center; }
     body.authed .roster-hint { display: none; }
 
     @media (max-width: 700px) {
@@ -294,6 +302,8 @@
   </style>
 </head>
 <body>
+  <div class="utility-bar">연습용 사이트 — <strong>광주소프트웨어마이스터고등학교</strong>에서 제작한 비상업적 학습 프로젝트입니다</div>
+
   <!-- Menu -->
   <nav class="menu">
     <div class="logo"><span class="ball"></span> NBA HOOPS MAP</div>
@@ -489,7 +499,7 @@
           <button class="btn" id="signupBtn">회원가입</button>
         </div>
         <div class="auth-status" id="authStatus"></div>
-        <p class="auth-help">현재 익명 편집이 허용되어 있어 로그인 없이도 선수 명단 편집(추가/수정/삭제)이 가능합니다. 로그인은 선택입니다.</p>
+        <p class="auth-help">선수 명단 편집(추가/수정/삭제)은 로그인한 사용자만 가능합니다. 배포 환경에서는 익명은 읽기만 가능합니다.</p>
       </div>
     </div>
   </div>
@@ -819,7 +829,7 @@
     // 선수 목록 클릭 위임 (수정/삭제/저장/취소)
     d3.select("#playerList").on("click", async function (event) {
       const target = event.target;
-      if (!target) return;
+      if (!target || !currentUser) return;
       const li = target.closest("li.player-row");
       if (!li) return;
       const id = Number(li.dataset.id);
@@ -847,7 +857,7 @@
     // 선수 추가 폼
     d3.select("#addPlayerForm").on("submit", async function (event) {
       event.preventDefault();
-      if (!currentTeam) return;
+      if (!currentUser || !currentTeam) return;
       const name = document.getElementById("addName").value.trim();
       const num = document.getElementById("addNum").value.trim();
       const pos = document.getElementById("addPos").value.trim();
