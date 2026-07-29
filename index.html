@@ -1,0 +1,1020 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NBA 팀 연고지 지도</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://d3js.org/topojson.v3.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    :root {
+      --ink: #111111;
+      --canvas: #ffffff;
+      --cloud: #f5f5f5;
+      --charcoal: #39393b;
+      --ash: #4b4b4d;
+      --mute: #707072;
+      --stone: #9e9ea0;
+      --hairline: #cacacb;
+      --hairline-soft: #e5e5e5;
+      --east: #d30005;
+      --west: #1151ff;
+      --success: #007d48;
+      --ball: #e8642b;
+      --border: var(--hairline-soft);
+      --panel: var(--canvas);
+      --panel-2: var(--cloud);
+      --accent: var(--ink);
+      --accent-2: var(--west);
+      --text: var(--ink);
+      --bg: var(--canvas);
+      --display: "Bebas Neue", "Inter", sans-serif;
+      --body: "Inter", system-ui, -apple-system, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--body);
+      background: var(--canvas);
+      color: var(--ink);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+    :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+    /* ===== Primary Nav ===== */
+    nav.menu {
+      position: sticky; top: 0; z-index: 50;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 60px; padding: 0 24px;
+      background: var(--canvas);
+      box-shadow: inset 0 -1px 0 var(--hairline-soft);
+    }
+    nav.menu .logo {
+      font-weight: 600; font-size: 16px; letter-spacing: -0.2px;
+      display: flex; align-items: center; gap: 0.5rem; color: var(--ink);
+    }
+    nav.menu .logo .ball {
+      width: 16px; height: 16px; border-radius: 50%;
+      background: var(--ink);
+    }
+    nav.menu ul { list-style: none; display: flex; gap: 24px; }
+    nav.menu ul a {
+      color: var(--ink); font-size: 16px; font-weight: 500; transition: opacity 0.15s;
+    }
+    nav.menu ul a:hover { opacity: 0.6; }
+
+    .nav-right { display: flex; align-items: center; gap: 16px; }
+    nav.menu .nav-auth {
+      background: var(--canvas); border: 1px solid var(--hairline); color: var(--ink);
+      border-radius: 30px; font-size: 14px; font-weight: 500; padding: 8px 16px;
+      max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      cursor: pointer; transition: background 0.15s, color 0.15s;
+    }
+    nav.menu .nav-auth:hover { background: var(--cloud); }
+    nav.menu .nav-auth.logged { background: var(--ink); color: var(--canvas); border-color: var(--ink); }
+
+    /* ===== Hero (campaign tile) ===== */
+    header.hero {
+      background: var(--ink); color: var(--canvas);
+      padding: 64px 24px 72px;
+    }
+    .hero-inner { max-width: 1100px; margin: 0 auto; }
+    .hero-eyebrow {
+      font-size: 12px; font-weight: 500; letter-spacing: 1px; color: var(--stone);
+      text-transform: uppercase; margin-bottom: 16px;
+    }
+    header.hero h1 {
+      font-family: var(--display);
+      font-size: clamp(48px, 9vw, 96px);
+      font-weight: 500; line-height: 0.9; text-transform: uppercase;
+      letter-spacing: -0.5px; margin-bottom: 18px; color: var(--canvas);
+    }
+    header.hero p { color: var(--stone); max-width: 540px; font-size: 16px; margin-bottom: 24px; }
+    .btn-pill-outline {
+      display: inline-block; background: var(--canvas); color: var(--ink);
+      padding: 12px 24px; border-radius: 30px; font-size: 16px; font-weight: 500;
+      transition: opacity 0.15s;
+    }
+    .btn-pill-outline:hover { opacity: 0.85; }
+
+    /* ===== Map ===== */
+    section.map-section { padding: 48px 24px; }
+    .map-wrap {
+      max-width: 1100px; margin: 0 auto;
+      background: var(--canvas);
+      border: 1px solid var(--hairline-soft);
+      padding: 24px;
+    }
+    .map-controls {
+      display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+      justify-content: space-between; margin-bottom: 20px;
+    }
+    .map-controls .filters { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn {
+      background: var(--canvas); border: 1px solid var(--hairline); color: var(--ink);
+      padding: 8px 16px; border-radius: 30px; font-size: 14px; font-weight: 500;
+      cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .btn:hover { background: var(--cloud); }
+    .btn.active { background: var(--ink); color: var(--canvas); border-color: var(--ink); }
+    .legend { display: flex; gap: 16px; font-size: 14px; color: var(--mute); flex-wrap: wrap; align-items: center; }
+    .legend .dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+    #map { width: 100%; display: block; }
+    .state { fill: var(--cloud); stroke: var(--hairline); stroke-width: 0.5; }
+    .state-border { fill: none; stroke: var(--hairline); stroke-width: 0.6; stroke-linejoin: round; }
+    .team-circle { stroke: var(--ink); stroke-width: 1; cursor: pointer; transition: r 0.15s; }
+    .team-circle:hover { stroke: var(--ink); stroke-width: 1.5; }
+
+    .tooltip {
+      position: absolute; pointer-events: none;
+      background: var(--ink); color: var(--canvas);
+      padding: 8px 12px; border-radius: 4px; font-size: 14px;
+      opacity: 0; transition: opacity 0.15s; max-width: 220px;
+    }
+    .tooltip .t-name { font-weight: 500; }
+    .tooltip .t-city { color: var(--stone); font-size: 12px; }
+
+    /* ===== Cards ===== */
+    section.cards-section { padding: 0 24px 48px; }
+    .cards-section h2 {
+      max-width: 1100px; margin: 0 auto 24px; font-size: 32px; font-weight: 500;
+      line-height: 1.2; letter-spacing: -0.3px;
+    }
+    .cards { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; }
+    .card {
+      --c: var(--ink);
+      background: var(--canvas); border: 1px solid var(--hairline-soft);
+      padding: 24px; transition: background 0.15s; cursor: pointer;
+    }
+    .card:hover { background: var(--cloud); }
+    .card::before {
+      content: ""; display: block; width: 12px; height: 12px; border-radius: 50%;
+      background: var(--c); margin-bottom: 12px;
+    }
+    .card.east { --c: var(--east); }
+    .card.west { --c: var(--west); }
+    .card.all { --c: var(--ink); }
+    .card.gold { --c: #c9a227; }
+    .card.purple { --c: #6c4ab6; }
+    .card.green { --c: var(--success); }
+    .card.cyan { --c: #0a7281; }
+    .card .badge {
+      display: inline-block; background: var(--canvas); color: var(--ink);
+      border: 1px solid var(--hairline); border-radius: 30px;
+      font-size: 12px; font-weight: 500; padding: 4px 12px; text-transform: uppercase;
+      letter-spacing: 0.2px; margin-bottom: 12px;
+    }
+    .card .more { display: inline-block; margin-top: 12px; font-size: 16px; font-weight: 500; color: var(--ink); text-decoration: underline; }
+    .card h3 { font-size: 16px; font-weight: 500; line-height: 1.4; margin-bottom: 4px; }
+    .card .num { font-size: 32px; font-weight: 500; line-height: 1.2; margin: 4px 0 8px; }
+    .card p { color: var(--mute); font-size: 14px; line-height: 1.5; }
+
+    /* ===== D-Day widget ===== */
+    .dday {
+      position: fixed; left: 16px; bottom: 16px; z-index: 40;
+      background: var(--ink); color: var(--canvas);
+      padding: 14px 18px; min-width: 180px;
+    }
+    .dday-head { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 500; }
+    .dday-ball { font-size: 14px; }
+    .dday-sub { color: var(--stone); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; margin: 2px 0 10px; }
+    .dday-count { display: flex; align-items: baseline; gap: 10px; }
+    .dday-d { font-size: 24px; font-weight: 500; line-height: 1; }
+    .dday-time { font-size: 14px; font-weight: 500; color: var(--stone); font-variant-numeric: tabular-nums; }
+    @media (max-width: 560px) { .dday { left: 8px; bottom: 8px; min-width: 0; padding: 10px 14px; } .dday-d { font-size: 20px; } }
+
+    /* ===== Footer ===== */
+    footer.footer { background: var(--canvas); border-top: 1px solid var(--hairline); padding: 48px 24px 24px; }
+    .footer-inner { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 32px; }
+    .footer-inner h4 { font-size: 16px; font-weight: 500; margin-bottom: 16px; color: var(--ink); }
+    .footer-inner ul { list-style: none; }
+    .footer-inner ul li { margin-bottom: 8px; }
+    .footer-inner ul a { color: var(--mute); font-size: 14px; }
+    .footer-inner ul a:hover { color: var(--ink); }
+    .footer-inner p { color: var(--mute); font-size: 14px; }
+    .footer-bottom { max-width: 1100px; margin: 32px auto 0; padding-top: 16px; border-top: 1px solid var(--hairline-soft); text-align: center; color: var(--stone); font-size: 12px; }
+
+    /* ===== Modal ===== */
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(17,17,17,0.45); display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.2s; z-index: 100; padding: 16px; }
+    .modal-backdrop.open { opacity: 1; pointer-events: auto; }
+    .modal { background: var(--canvas); border: 1px solid var(--hairline); max-width: 420px; width: 100%; transform: translateY(8px); transition: transform 0.2s; overflow: hidden; }
+    .modal-backdrop.open .modal { transform: translateY(0); }
+    .modal-head { padding: 24px; position: relative; display: flex; align-items: center; gap: 16px; box-shadow: inset 0 -1px 0 var(--hairline-soft); }
+    .modal-head .swatch { width: 48px; height: 48px; border-radius: 0; display: flex; align-items: center; justify-content: center; font-weight: 500; font-size: 16px; flex-shrink: 0; color: #fff; }
+    .modal-head h3 { font-size: 24px; font-weight: 500; line-height: 1.2; }
+    .modal-head .sub { color: var(--mute); font-size: 14px; }
+    .modal-close { position: absolute; top: 16px; right: 16px; background: var(--cloud); border: none; color: var(--ink); width: 40px; height: 40px; border-radius: 50%; cursor: pointer; font-size: 18px; line-height: 1; }
+    .modal-close:hover { background: var(--hairline-soft); }
+    .modal-body { padding: 24px; }
+    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--hairline-soft); border: 1px solid var(--hairline-soft); }
+    .info-grid .item { background: var(--canvas); padding: 16px; }
+    .info-grid .item .label { font-size: 12px; color: var(--mute); text-transform: uppercase; letter-spacing: 0.3px; }
+    .info-grid .item .value { font-size: 16px; font-weight: 500; margin-top: 4px; }
+    .modal-note { color: var(--mute); font-size: 14px; margin-top: 16px; text-align: center; }
+
+    .modal-players { padding: 0 24px 24px; }
+    .modal-players h4 { font-size: 16px; font-weight: 500; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; padding-top: 16px; box-shadow: inset 0 1px 0 var(--hairline-soft); }
+    .modal-players h4 .count { font-size: 14px; font-weight: 400; color: var(--mute); }
+    .player-list { list-style: none; display: flex; flex-direction: column; max-height: 260px; overflow-y: auto; margin: 0; }
+    .player-list::-webkit-scrollbar { width: 6px; }
+    .player-list::-webkit-scrollbar-thumb { background: var(--hairline); }
+    .player-row { display: flex; align-items: center; gap: 12px; padding: 14px 0; box-shadow: inset 0 -1px 0 var(--hairline-soft); }
+    .player-row .num { width: 28px; flex-shrink: 0; font-size: 14px; font-weight: 500; color: var(--mute); font-variant-numeric: tabular-nums; }
+    .player-row .pname { font-size: 16px; font-weight: 500; flex: 1; min-width: 0; }
+    .player-row .ppos { font-size: 12px; color: var(--mute); text-transform: uppercase; letter-spacing: 0.3px; }
+    .player-empty, .player-loading, .player-error { color: var(--mute); font-size: 14px; text-align: center; padding: 24px 0; list-style: none; }
+    .player-loading .spin { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--hairline); border-top-color: var(--ink); border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 6px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .player-error { color: var(--east); }
+
+    /* shared modal input */
+    .modal-input { width: 100%; background: var(--cloud); border: 1px solid transparent; color: var(--ink); border-radius: 24px; padding: 10px 16px; font-size: 16px; outline: none; font-family: var(--body); }
+    .modal-input:focus { background: var(--canvas); border-color: var(--ink); }
+    .auth-field { margin-bottom: 12px; }
+    .auth-status { font-size: 14px; min-height: 1.2em; margin-top: 8px; }
+    .auth-status.ok { color: var(--success); }
+    .auth-status.err { color: var(--east); }
+    .auth-actions { display: flex; gap: 8px; margin-top: 8px; }
+    .auth-actions .btn-primary { background: var(--ink); color: var(--canvas); border: 1px solid var(--ink); border-radius: 30px; font-weight: 500; flex: 1; padding: 12px 16px; cursor: pointer; font-size: 16px; }
+    .auth-actions .btn-primary:hover { background: var(--charcoal); }
+    .auth-help { color: var(--mute); font-size: 14px; line-height: 1.5; margin-top: 16px; }
+
+    /* player CRUD */
+    .player-actions { display: flex; gap: 6px; }
+    body.authed .player-actions { display: flex; }
+    .player-actions button { background: var(--cloud); border: none; color: var(--ink); width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 14px; line-height: 1; }
+    .player-actions button:hover { background: var(--hairline-soft); }
+    .player-actions button.del:hover { background: var(--east); color: var(--canvas); }
+    .player-actions button svg { pointer-events: none; width: 16px; height: 16px; }
+    .modal-close svg { pointer-events: none; width: 20px; height: 20px; }
+    .player-edit { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 0; }
+    .player-edit input { background: var(--cloud); border: 1px solid transparent; color: var(--ink); border-radius: 20px; padding: 6px 12px; font-size: 14px; outline: none; font-family: var(--body); }
+    .player-edit input:focus { background: var(--canvas); border-color: var(--ink); }
+    .player-edit .e-name { flex: 1; min-width: 0; }
+    .player-edit .e-num { width: 48px; }
+    .player-edit .e-pos { width: 52px; }
+    .player-edit .e-save { background: var(--ink); color: var(--canvas); border: none; border-radius: 30px; padding: 6px 14px; font-size: 14px; font-weight: 500; cursor: pointer; }
+    .player-edit .e-cancel { background: var(--cloud); border: none; color: var(--ink); border-radius: 30px; padding: 6px 14px; font-size: 14px; cursor: pointer; }
+
+    /* add player form */
+    .add-player { display: block; margin-top: 16px; padding-top: 16px; box-shadow: inset 0 1px 0 var(--hairline-soft); }
+    body.authed .add-player { display: block; }
+    .add-player h5 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.3px; color: var(--mute); margin-bottom: 10px; }
+    .add-player form { display: flex; gap: 8px; flex-wrap: wrap; }
+    .add-player input { background: var(--cloud); border: 1px solid transparent; color: var(--ink); border-radius: 24px; padding: 8px 14px; font-size: 14px; outline: none; font-family: var(--body); }
+    .add-player input:focus { background: var(--canvas); border-color: var(--ink); }
+    .add-player .a-name { flex: 1; min-width: 120px; }
+    .add-player .a-num { width: 64px; }
+    .add-player .a-pos { width: 68px; }
+    .add-player .a-add { background: var(--ink); color: var(--canvas); border: none; border-radius: 30px; padding: 8px 18px; font-size: 14px; font-weight: 500; cursor: pointer; }
+    .add-player .a-add:hover { background: var(--charcoal); }
+    .roster-hint { display: none; font-size: 14px; color: var(--mute); margin-top: 12px; text-align: center; }
+    body.authed .roster-hint { display: none; }
+
+    @media (max-width: 700px) {
+      nav.menu { padding: 0 16px; height: 56px; }
+      nav.menu ul { gap: 16px; }
+      nav.menu ul a { font-size: 14px; }
+      section.map-section { padding: 32px 16px; }
+      section.cards-section { padding: 0 16px 32px; }
+      .footer-inner { grid-template-columns: 1fr; gap: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Menu -->
+  <nav class="menu">
+    <div class="logo"><span class="ball"></span> NBA HOOPS MAP</div>
+    <div class="nav-right">
+      <ul>
+        <li><a href="#home">홈</a></li>
+        <li><a href="#map-anchor">지도</a></li>
+        <li><a href="#cards">컨퍼런스</a></li>
+        <li><a href="#about">소개</a></li>
+      </ul>
+      <button class="btn nav-auth" id="authBtn" title="로그인">로그인</button>
+    </div>
+  </nav>
+
+  <!-- Hero / Large Title -->
+  <header class="hero" id="home">
+    <div class="hero-inner">
+      <div class="hero-eyebrow">2026-27 SEASON</div>
+      <h1>NBA<br>COURT MAP</h1>
+      <p>미국 지도 위 NBA 30개 팀 연고지를 한눈에. 마커를 클릭하면 팀 정보와 선수 명단이 표시됩니다.</p>
+      <a class="btn-pill-outline" href="#map-anchor">지도 보기</a>
+    </div>
+  </header>
+
+  <!-- Map -->
+  <section class="map-section" id="map-anchor">
+    <div class="map-wrap" id="map">
+      <div class="map-controls">
+        <div class="filters">
+          <button class="btn active" data-filter="all">전체</button>
+          <button class="btn" data-filter="East">이스턴</button>
+          <button class="btn" data-filter="West">웨스턴</button>
+        </div>
+        <div class="legend">
+          <span><span class="dot" style="background:#c8102e"></span>이스턴 컨퍼런스</span>
+          <span><span class="dot" style="background:#1d428a"></span>웨스턴 컨퍼런스</span>
+        </div>
+      </div>
+      <!-- D3 map renders here -->
+    </div>
+  </section>
+
+  <!-- Cards -->
+  <section class="cards-section" id="cards">
+    <h2>NBA 팀 분포 &amp; 하이라이트</h2>
+    <div class="cards">
+      <div class="card east" data-filter="East">
+        <span class="badge">Eastern</span>
+        <h3>이스턴 컨퍼런스</h3>
+        <div class="num">15</div>
+        <p>동부 연고지를 둔 15개 팀. 보스턴, 뉴욕, 마이애미 등 동부 해안 중심.</p>
+        <span class="more">지도에서 보기 →</span>
+      </div>
+      <div class="card west" data-filter="West">
+        <span class="badge">Western</span>
+        <h3>웨스턴 컨퍼런스</h3>
+        <div class="num">15</div>
+        <p>서부 연고지를 둔 15개 팀. LA, 골든스테이트, 텍사스 등 서부 중심.</p>
+        <span class="more">지도에서 보기 →</span>
+      </div>
+      <div class="card all" data-filter="all">
+        <span class="badge">Total</span>
+        <h3>전체 팀</h3>
+        <div class="num">30</div>
+        <p>미국 29개 + 캐나다 1개(토론토). 지도 필터로 컨퍼런스를 전환해 보세요.</p>
+        <span class="more">지도에서 보기 →</span>
+      </div>
+      <div class="card gold tilt-r" data-team="BOS">
+        <span class="badge">Record</span>
+        <h3>최다 우승 프랜차이즈</h3>
+        <div class="num">18</div>
+        <p>보스턴 셀틱스. NBA 역사상 가장 많은 우승을 차지한 최다 우승팀.</p>
+        <span class="more">팀 정보 보기 →</span>
+      </div>
+      <div class="card purple" data-team="SAC">
+        <span class="badge">Oldest</span>
+        <h3>최고령 프랜차이즈</h3>
+        <div class="num">1923</div>
+        <p>새크라멘토 킹스. 1923년 창단된 NBA에서 가장 오래된 프랜차이즈.</p>
+        <span class="more">팀 정보 보기 →</span>
+      </div>
+      <div class="card green" data-team="NOP">
+        <span class="badge">Newest</span>
+        <h3>최신 창단 팀</h3>
+        <div class="num">2002</div>
+        <p>뉴올리언스 펠리컨스. 2002년 창단한 가장 최근의 NBA 프랜차이즈.</p>
+        <span class="more">팀 정보 보기 →</span>
+      </div>
+      <div class="card cyan" data-team="TOR">
+        <span class="badge">Canada</span>
+        <h3>캐나다 연고지</h3>
+        <div class="num">1</div>
+        <p>토론토 랩터스. 미국 밖에 있는 유일한 NBA 팀. (미국 지도에는 본토만 표시)</p>
+        <span class="more">팀 정보 보기 →</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer" id="about">
+    <div class="footer-inner">
+      <div>
+        <h4>NBA HOOPS MAP</h4>
+        <p>미국 지도 위에 NBA 팀 연고지를 시각화하는 인터랙티브 데모 서비스입니다. D3.js와 TopoJSON을 활용해 바닐라 HTML로 제작되었습니다.</p>
+      </div>
+      <div>
+        <h4>바로가기</h4>
+        <ul>
+          <li><a href="#home">홈</a></li>
+          <li><a href="#map-anchor">지도</a></li>
+          <li><a href="#cards">컨퍼런스</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>리소스</h4>
+        <ul>
+          <li><a href="https://d3js.org" target="_blank" rel="noopener">D3.js</a></li>
+          <li><a href="https://github.com/topojson/us-atlas" target="_blank" rel="noopener">US Atlas</a></li>
+          <li><a href="https://www.nba.com" target="_blank" rel="noopener">NBA.com</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      &copy; 2026 NBA Hoops Map · 교육용 데모 프로젝트
+    </div>
+  </footer>
+
+  <!-- NBA Opening Day D-Day -->
+  <div class="dday" id="dday">
+    <div class="dday-head"><span class="dday-ball">🏀</span><span>NBA 개막전 D-DAY</span></div>
+    <div class="dday-sub">2026-27 정규시즌</div>
+    <div class="dday-count">
+      <span class="dday-d" id="ddayD">D-00</span>
+      <span class="dday-time" id="ddayTime">00:00:00</span>
+    </div>
+  </div>
+
+  <div class="tooltip" id="tooltip"></div>
+
+  <!-- Team Info Modal -->
+  <div class="modal-backdrop" id="teamModal">
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modal-head">
+        <div class="swatch" id="modalSwatch">TM</div>
+        <div>
+          <h3 id="modalName">Team</h3>
+          <div class="sub" id="modalSub"></div>
+        </div>
+        <button class="modal-close" id="modalClose" aria-label="닫기"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="info-grid">
+          <div class="item"><div class="label">연고지</div><div class="value" id="modalCity">-</div></div>
+          <div class="item"><div class="label">컨퍼런스</div><div class="value" id="modalConf">-</div></div>
+          <div class="item"><div class="label">디비전</div><div class="value" id="modalDiv">-</div></div>
+          <div class="item"><div class="label">홈 경기장</div><div class="value" id="modalArena">-</div></div>
+          <div class="item"><div class="label">창단년도</div><div class="value" id="modalFounded">-</div></div>
+          <div class="item"><div class="label">우승 횟수</div><div class="value" id="modalTitles">-</div></div>
+        </div>
+        <p class="modal-note">지도의 다른 마커를 클릭해 팀 정보를 확인하세요.</p>
+      </div>
+      <div class="modal-players">
+        <h4><span>선수 명단</span><span class="count" id="playerCount"></span></h4>
+        <ul class="player-list" id="playerList">
+          <li class="player-empty">마커를 클릭하면 선수 명단이 표시됩니다.</li>
+        </ul>
+        <div class="add-player">
+          <h5>선수 추가</h5>
+          <form id="addPlayerForm" autocomplete="off">
+            <input class="a-name" id="addName" placeholder="선수 이름" />
+            <input class="a-num" id="addNum" placeholder="등번호" />
+            <input class="a-pos" id="addPos" placeholder="포지션" />
+            <button class="a-add" type="submit">추가</button>
+          </form>
+        </div>
+        <p class="roster-hint">선수 추가/수정/삭제는 로그인 후 가능합니다.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Auth Modal -->
+  <div class="modal-backdrop" id="authModal">
+    <div class="modal" role="dialog" aria-modal="true" style="max-width:400px">
+      <div class="modal-head">
+        <h3 style="font-size:1.15rem">로그인 / 회원가입</h3>
+        <button class="modal-close" id="authClose" aria-label="닫기"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="auth-field"><input class="modal-input" id="authEmail" type="email" placeholder="이메일" autocomplete="email" /></div>
+        <div class="auth-field"><input class="modal-input" id="authPassword" type="password" placeholder="비밀번호 (6자 이상)" autocomplete="current-password" /></div>
+        <div class="auth-actions">
+          <button class="btn btn-primary" id="loginBtn">로그인</button>
+          <button class="btn" id="signupBtn">회원가입</button>
+        </div>
+        <div class="auth-status" id="authStatus"></div>
+        <p class="auth-help">현재 익명 편집이 허용되어 있어 로그인 없이도 선수 명단 편집(추가/수정/삭제)이 가능합니다. 로그인은 선택입니다.</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ===== NBA 팀 데이터 (연고지 좌표, 컨퍼런스, 팀 컬러) =====
+    const TEAMS = [
+      { name: "Hawks",        city: "Atlanta",          abbr: "ATL", conf: "East", color: "#E03A3E", lon: -84.3963, lat: 33.7573 },
+      { name: "Celtics",      city: "Boston",           abbr: "BOS", conf: "East", color: "#007A33", lon: -71.0621, lat: 42.3662 },
+      { name: "Nets",         city: "Brooklyn",         abbr: "BKN", conf: "East", color: "#000000", lon: -73.9754, lat: 40.6826 },
+      { name: "Knicks",       city: "New York",         abbr: "NYK", conf: "East", color: "#006BB6", lon: -73.9934, lat: 40.7505 },
+      { name: "76ers",        city: "Philadelphia",     abbr: "PHI", conf: "East", color: "#006BB6", lon: -75.1720, lat: 39.9012 },
+      { name: "Raptors",      city: "Toronto",          abbr: "TOR", conf: "East", color: "#CE1141", lon: -79.3792, lat: 43.6432 },
+      { name: "Bulls",        city: "Chicago",          abbr: "CHI", conf: "East", color: "#CE1141", lon: -87.6298, lat: 41.8781 },
+      { name: "Cavaliers",    city: "Cleveland",        abbr: "CLE", conf: "East", color: "#860038", lon: -81.6881, lat: 41.4965 },
+      { name: "Pistons",      city: "Detroit",          abbr: "DET", conf: "East", color: "#C8102E", lon: -83.0458, lat: 42.3314 },
+      { name: "Pacers",       city: "Indianapolis",     abbr: "IND", conf: "East", color: "#002D62", lon: -86.1556, lat: 39.7640 },
+      { name: "Bucks",        city: "Milwaukee",        abbr: "MIL", conf: "East", color: "#00471B", lon: -87.9075, lat: 43.0481 },
+      { name: "Hornets",      city: "Charlotte",        abbr: "CHA", conf: "East", color: "#1D1160", lon: -80.8392, lat: 35.2250 },
+      { name: "Heat",         city: "Miami",            abbr: "MIA", conf: "East", color: "#98002E", lon: -80.1870, lat: 25.7814 },
+      { name: "Magic",        city: "Orlando",          abbr: "ORL", conf: "East", color: "#0077C0", lon: -81.3841, lat: 28.5392 },
+      { name: "Wizards",      city: "Washington",       abbr: "WAS", conf: "East", color: "#002B5C", lon: -77.0206, lat: 38.8981 },
+      { name: "Nuggets",      city: "Denver",           abbr: "DEN", conf: "West", color: "#0E2240", lon: -105.0074, lat: 39.7484 },
+      { name: "Timberwolves", city: "Minneapolis",      abbr: "MIN", conf: "West", color: "#236192", lon: -93.2751, lat: 44.9790 },
+      { name: "Thunder",      city: "Oklahoma City",    abbr: "OKC", conf: "West", color: "#007AC1", lon: -97.5151, lat: 35.4634 },
+      { name: "Trail Blazers",city: "Portland",         abbr: "POR", conf: "West", color: "#E03A3E", lon: -122.6691, lat: 45.5227 },
+      { name: "Jazz",         city: "Salt Lake City",   abbr: "UTA", conf: "West", color: "#002B5C", lon: -111.9011, lat: 40.7683 },
+      { name: "Warriors",     city: "San Francisco",    abbr: "GSW", conf: "West", color: "#1D428A", lon: -122.3877, lat: 37.7680 },
+      { name: "Clippers",     city: "Los Angeles",      abbr: "LAC", conf: "West", color: "#C8102E", lon: -118.2672, lat: 34.0430 },
+      { name: "Lakers",       city: "Los Angeles",      abbr: "LAL", conf: "West", color: "#552583", lon: -118.2672, lat: 34.0430 },
+      { name: "Suns",         city: "Phoenix",          abbr: "PHX", conf: "West", color: "#1D1160", lon: -112.0740, lat: 33.4483 },
+      { name: "Kings",        city: "Sacramento",       abbr: "SAC", conf: "West", color: "#5A2D81", lon: -121.5000, lat: 38.6466 },
+      { name: "Mavericks",    city: "Dallas",           abbr: "DAL", conf: "West", color: "#00538C", lon: -96.8106, lat: 32.7908 },
+      { name: "Rockets",      city: "Houston",          abbr: "HOU", conf: "West", color: "#CE1141", lon: -95.4110, lat: 29.6828 },
+      { name: "Grizzlies",    city: "Memphis",          abbr: "MEM", conf: "West", color: "#5D76A9", lon: -90.0495, lat: 35.1381 },
+      { name: "Pelicans",     city: "New Orleans",      abbr: "NOP", conf: "West", color: "#0C2340", lon: -90.0812, lat: 29.9495 },
+      { name: "Spurs",        city: "San Antonio",      abbr: "SAS", conf: "West", color: "#C4CED4", lon: -98.4375, lat: 29.4271 },
+    ];
+
+    // 팀 부가 정보 (클릭 시 모달에 표시)
+    const TEAM_INFO = {
+      ATL: { arena: "State Farm Arena",            founded: 1946, titles: 1,  division: "Southeast" },
+      BOS: { arena: "TD Garden",                   founded: 1946, titles: 18, division: "Atlantic" },
+      BKN: { arena: "Barclays Center",             founded: 1967, titles: 0,  division: "Atlantic" },
+      NYK: { arena: "Madison Square Garden",       founded: 1946, titles: 2,  division: "Atlantic" },
+      PHI: { arena: "Wells Fargo Center",          founded: 1946, titles: 3,  division: "Atlantic" },
+      TOR: { arena: "Scotiabank Arena",            founded: 1995, titles: 1,  division: "Atlantic" },
+      CHI: { arena: "United Center",               founded: 1966, titles: 6,  division: "Central" },
+      CLE: { arena: "Rocket Mortgage FieldHouse",  founded: 1970, titles: 1,  division: "Central" },
+      DET: { arena: "Little Caesars Arena",        founded: 1941, titles: 3,  division: "Central" },
+      IND: { arena: "Gainbridge Fieldhouse",       founded: 1967, titles: 0,  division: "Central" },
+      MIL: { arena: "Fiserv Forum",                founded: 1968, titles: 2,  division: "Central" },
+      CHA: { arena: "Spectrum Center",             founded: 1988, titles: 0,  division: "Southeast" },
+      MIA: { arena: "Kaseya Center",               founded: 1988, titles: 3,  division: "Southeast" },
+      ORL: { arena: "Kia Center",                  founded: 1989, titles: 0,  division: "Southeast" },
+      WAS: { arena: "Capital One Arena",           founded: 1961, titles: 1,  division: "Southeast" },
+      DEN: { arena: "Ball Arena",                  founded: 1967, titles: 1,  division: "Northwest" },
+      MIN: { arena: "Target Center",               founded: 1989, titles: 0,  division: "Northwest" },
+      OKC: { arena: "Paycom Center",               founded: 1967, titles: 1,  division: "Northwest" },
+      POR: { arena: "Moda Center",                 founded: 1970, titles: 1,  division: "Northwest" },
+      UTA: { arena: "Delta Center",                founded: 1974, titles: 0,  division: "Northwest" },
+      GSW: { arena: "Chase Center",                founded: 1946, titles: 7,  division: "Pacific" },
+      LAC: { arena: "Intuit Dome",                 founded: 1970, titles: 0,  division: "Pacific" },
+      LAL: { arena: "Crypto.com Arena",            founded: 1947, titles: 17, division: "Pacific" },
+      PHX: { arena: "Footprint Center",            founded: 1968, titles: 0,  division: "Pacific" },
+      SAC: { arena: "Golden 1 Center",             founded: 1923, titles: 1,  division: "Pacific" },
+      DAL: { arena: "American Airlines Center",    founded: 1980, titles: 1,  division: "Southwest" },
+      HOU: { arena: "Toyota Center",               founded: 1967, titles: 2,  division: "Southwest" },
+      MEM: { arena: "FedExForum",                  founded: 1995, titles: 0,  division: "Southwest" },
+      NOP: { arena: "Smoothie King Center",        founded: 2002, titles: 0,  division: "Southwest" },
+      SAS: { arena: "Frost Bank Center",           founded: 1967, titles: 5,  division: "Southwest" },
+    };
+
+    const width = 960, height = 600;
+    const tooltip = d3.select("#tooltip");
+
+    const svg = d3.select("#map")
+      .append("svg")
+      .attr("viewBox", `0 0 ${width} ${height}`)
+      .attr("preserveAspectRatio", "xMidYMid meet")
+      .style("width", "100%")
+      .style("height", "auto");
+
+    const projection = d3.geoAlbersUsa().scale(1200).translate([width / 2, height / 2 - 20]);
+    const path = d3.geoPath(projection);
+
+    const mapG = svg.append("g").attr("class", "states-layer");
+    const teamG = svg.append("g").attr("class", "teams-layer");
+
+    // 미국 주 경계 로드
+    d3.json("https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json").then(function (us) {
+      mapG.selectAll("path.state")
+        .data(topojson.feature(us, us.objects.states).features)
+        .join("path")
+        .attr("class", "state")
+        .attr("d", path);
+
+      mapG.append("path")
+        .attr("class", "state-border")
+        .attr("d", path(topojson.mesh(us, us.objects.states, function (a, b) { return a !== b; })));
+
+      drawTeams("all");
+    });
+
+    // 팀 마커 그리기 (필터 적용)
+    function drawTeams(filter) {
+      const data = TEAMS.filter(function (t) {
+        return filter === "all" || t.conf === filter;
+      }).map(function (t) {
+        const p = projection([t.lon, t.lat]);
+        return Object.assign({}, t, { x: p ? p[0] : null, y: p ? p[1] : null });
+      }).filter(function (t) { return t.x != null && !isNaN(t.x); });
+
+      const circles = teamG.selectAll("circle.team-circle").data(data, function (d) { return d.abbr; });
+
+      circles.exit().remove();
+
+      circles.enter()
+        .append("circle")
+        .attr("class", "team-circle")
+        .attr("r", 7)
+        .attr("fill", function (d) { return d.color; })
+        .attr("cx", function (d) { return d.x; })
+        .attr("cy", function (d) { return d.y; })
+        .on("mouseover", function (event, d) {
+          d3.select(this).transition().duration(120).attr("r", 10);
+          tooltip.style("opacity", 1).html(
+            '<div class="t-name">' + d.city + ' ' + d.name + ' (' + d.abbr + ')</div>' +
+            '<div class="t-city">' + d.conf + 'ern Conference</div>'
+          );
+        })
+        .on("mousemove", function (event) {
+          tooltip
+            .style("left", (event.pageX + 14) + "px")
+            .style("top", (event.pageY - 10) + "px");
+        })
+        .on("mouseout", function () {
+          d3.select(this).transition().duration(120).attr("r", 7);
+          tooltip.style("opacity", 0);
+        })
+        .on("click", function (event, d) {
+          openTeamModal(d);
+        });
+
+      circles
+        .attr("cx", function (d) { return d.x; })
+        .attr("cy", function (d) { return d.y; })
+        .attr("fill", function (d) { return d.color; });
+    }
+
+    // 배경색에 따라 가독성 좋은 텍스트 색 반환
+    function readableText(hex) {
+      const c = hex.replace("#", "");
+      const r = parseInt(c.substr(0, 2), 16);
+      const g = parseInt(c.substr(2, 2), 16);
+      const b = parseInt(c.substr(4, 2), 16);
+      const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+      return lum > 0.6 ? "#1a1a1a" : "#ffffff";
+    }
+
+    // ===== Supabase 연동 (선수 명단) =====
+    const SUPABASE_URL = "https://fptyyzmhedoqzignqncr.supabase.co";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZwdHl5em1oZWRvcXppZ25xbmNyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg1MjgxNDksImV4cCI6MjA3NDEwNDE0OX0.Cv6mjWQ0lUoZpvgWaxI7Sv5iHN5X1FDS1cgC7LZXMlQ";
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const rosterCache = {};
+    let currentUser = null;
+    let currentTeam = null;
+    let editingId = null;
+
+    async function fetchRoster(abbr) {
+      if (rosterCache[abbr]) return rosterCache[abbr];
+      const { data, error } = await sb.from("players")
+        .select("id, name, jersey_number, position")
+        .eq("team_abbr", abbr);
+      if (error) throw error;
+      rosterCache[abbr] = data || [];
+      return data || [];
+    }
+
+    function setPlayerLoading() {
+      d3.select("#playerList").selectAll("li").remove();
+      d3.select("#playerList").append("li").attr("class", "player-loading")
+        .html('<span class="spin"></span>선수 명단을 불러오는 중...');
+      d3.select("#playerCount").text("");
+    }
+
+    function setPlayerError(msg) {
+      d3.select("#playerList").selectAll("li").remove();
+      d3.select("#playerList").append("li").attr("class", "player-error")
+        .text(msg || "선수 명단을 불러올 수 없습니다.");
+      d3.select("#playerCount").text("");
+    }
+
+    function escapeAttr(s) {
+      return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+    }
+
+    function renderPlayers(players) {
+      const list = d3.select("#playerList");
+      list.selectAll("li").remove();
+      if (!players || players.length === 0) {
+        list.append("li").attr("class", "player-empty").text("선수 명단이 없습니다.");
+        d3.select("#playerCount").text("");
+        return;
+      }
+      const sorted = players.slice().sort(function (a, b) {
+        const na = parseInt(a.jersey_number), nb = parseInt(b.jersey_number);
+        if (isNaN(na) && isNaN(nb)) return 0;
+        if (isNaN(na)) return 1;
+        if (isNaN(nb)) return -1;
+        return na - nb;
+      });
+      d3.select("#playerCount").text(sorted.length + "명");
+      const rows = list.selectAll("li.player-row").data(sorted).enter()
+        .append("li").attr("class", "player-row").attr("data-id", function (d) { return d.id; });
+
+      rows.each(function (d) {
+        const row = d3.select(this);
+        if (editingId === d.id) {
+          row.append("div").attr("class", "player-edit").html(
+            '<input class="e-name" value="' + escapeAttr(d.name) + '" />' +
+            '<input class="e-num" value="' + escapeAttr(d.jersey_number) + '" placeholder="등번" />' +
+            '<input class="e-pos" value="' + escapeAttr(d.position) + '" placeholder="포지션" />' +
+            '<button class="e-save" type="button">저장</button>' +
+            '<button class="e-cancel" type="button">취소</button>'
+          );
+        } else {
+          row.append("div").attr("class", "num").text(d.jersey_number || "-");
+          row.append("div").attr("class", "pname").text(d.name);
+          row.append("div").attr("class", "ppos").text(d.position || "-");
+          const actions = row.append("div").attr("class", "player-actions");
+          actions.append("button").attr("class", "edit").attr("type", "button").attr("title", "수정").html('<i data-lucide="pencil"></i>');
+          actions.append("button").attr("class", "del").attr("type", "button").attr("title", "삭제").html('<i data-lucide="trash-2"></i>');
+        }
+      });
+      if (window.lucide) lucide.createIcons();
+    }
+
+    // 팀 정보 모달 열기
+    function openTeamModal(team) {
+      const info = TEAM_INFO[team.abbr] || {};
+      d3.select("#modalSwatch")
+        .style("background", team.color)
+        .style("color", readableText(team.color))
+        .text(team.abbr);
+      d3.select("#modalName").text(team.city + " " + team.name);
+      d3.select("#modalSub").text(team.conf + "ern Conference · " + (info.division || "-"));
+      d3.select("#modalCity").text(team.city);
+      d3.select("#modalConf").text(team.conf === "East" ? "Eastern" : "Western");
+      d3.select("#modalDiv").text(info.division || "-");
+      d3.select("#modalArena").text(info.arena || "-");
+      d3.select("#modalFounded").text(info.founded || "-");
+      d3.select("#modalTitles").text((info.titles != null ? info.titles : "-") + "회");
+      currentTeam = team;
+      editingId = null;
+      setPlayerLoading();
+      d3.select("#teamModal").classed("open", true);
+      fetchRoster(team.abbr).then(renderPlayers).catch(function (err) {
+        setPlayerError("불러오기 실패: " + (err && err.message ? err.message : "DB 연결 오류"));
+      });
+    }
+
+    function refreshRoster() {
+      if (!currentTeam) return;
+      setPlayerLoading();
+      fetchRoster(currentTeam.abbr).then(renderPlayers).catch(function (err) {
+        setPlayerError("불러오기 실패: " + (err && err.message ? err.message : "DB 연결 오류"));
+      });
+    }
+
+    function closeTeamModal() {
+      d3.select("#teamModal").classed("open", false);
+    }
+
+    d3.select("#modalClose").on("click", closeTeamModal);
+    d3.select("#teamModal").on("click", function (event) {
+      if (event.target === this) closeTeamModal();
+    });
+
+    d3.select(window).on("keydown", function (event) {
+      if (event.key === "Escape") { closeTeamModal(); closeAuthModal(); }
+    });
+
+    // ===== 선수 CRUD =====
+    async function addPlayer(name, num, pos) {
+      const { error } = await sb.from("players")
+        .insert({ team_abbr: currentTeam.abbr, name: name, jersey_number: num, position: pos });
+      if (error) throw error;
+      delete rosterCache[currentTeam.abbr];
+    }
+
+    async function updatePlayer(id, name, num, pos) {
+      const { error } = await sb.from("players")
+        .update({ name: name, jersey_number: num, position: pos }).eq("id", id);
+      if (error) throw error;
+      delete rosterCache[currentTeam.abbr];
+    }
+
+    async function deletePlayer(id) {
+      const { error } = await sb.from("players").delete().eq("id", id);
+      if (error) throw error;
+      delete rosterCache[currentTeam.abbr];
+    }
+
+    // SweetAlert2 토스트/다이얼로그
+    const Toast = Swal.mixin({
+      toast: true, position: "top-end", showConfirmButton: false,
+      timer: 1800, timerProgressBar: true,
+      didOpen: function (el) { el.style.fontFamily = "Inter, system-ui, sans-serif"; }
+    });
+    function toast(msg, icon) { if (window.Swal) Toast.fire({ title: msg, icon: icon || "success" }); }
+    async function confirmDelete(name) {
+      const res = await Swal.fire({
+        title: "선수 삭제",
+        text: name + " 선수를 삭제할까요?",
+        showCancelButton: true,
+        confirmButtonText: "삭제",
+        cancelButtonText: "취소",
+        confirmButtonColor: "#111111",
+        cancelButtonColor: "#f5f5f5",
+        color: "#111111",
+        background: "#ffffff"
+      });
+      return res.isConfirmed;
+    }
+
+    // 선수 목록 클릭 위임 (수정/삭제/저장/취소)
+    d3.select("#playerList").on("click", async function (event) {
+      const target = event.target;
+      if (!target) return;
+      const li = target.closest("li.player-row");
+      if (!li) return;
+      const id = Number(li.dataset.id);
+      const cls = target.className || "";
+      if (cls.indexOf("e-save") >= 0) {
+        const name = li.querySelector(".e-name").value.trim();
+        const num = li.querySelector(".e-num").value.trim();
+        const pos = li.querySelector(".e-pos").value.trim();
+        if (!name) { setPlayerError("이름을 입력하세요."); return; }
+        try { await updatePlayer(id, name, num, pos); editingId = null; refreshRoster(); toast("수정됨", "success"); }
+        catch (e) { setPlayerError("수정 실패: " + e.message); }
+      } else if (cls.indexOf("e-cancel") >= 0) {
+        editingId = null; refreshRoster();
+      } else if (cls.indexOf("edit") >= 0) {
+        editingId = id; refreshRoster();
+      } else if (cls.indexOf("del") >= 0) {
+        const nameEl = li.querySelector(".pname");
+        const pname = nameEl ? nameEl.textContent : "이 선수";
+        if (!(await confirmDelete(pname))) return;
+        try { await deletePlayer(id); refreshRoster(); toast("삭제됨", "success"); }
+        catch (e) { setPlayerError("삭제 실패: " + e.message); }
+      }
+    });
+
+    // 선수 추가 폼
+    d3.select("#addPlayerForm").on("submit", async function (event) {
+      event.preventDefault();
+      if (!currentTeam) return;
+      const name = document.getElementById("addName").value.trim();
+      const num = document.getElementById("addNum").value.trim();
+      const pos = document.getElementById("addPos").value.trim();
+      if (!name) { setPlayerError("이름을 입력하세요."); return; }
+      try {
+        await addPlayer(name, num, pos);
+        document.getElementById("addName").value = "";
+        document.getElementById("addNum").value = "";
+        document.getElementById("addPos").value = "";
+        refreshRoster();
+        toast("선수 추가됨", "success");
+      } catch (e) { setPlayerError("추가 실패: " + e.message); }
+    });
+
+    // ===== Supabase Auth =====
+    function updateAuthUI() {
+      const btn = document.getElementById("authBtn");
+      if (currentUser) {
+        document.body.classList.add("authed");
+        const email = currentUser.email || "";
+        btn.textContent = email.length > 18 ? email.slice(0, 16) + "…" : email;
+        btn.classList.add("logged");
+        btn.title = "로그아웃";
+      } else {
+        document.body.classList.remove("authed");
+        btn.textContent = "로그인";
+        btn.classList.remove("logged");
+        btn.title = "로그인";
+      }
+    }
+
+    function openAuthModal() {
+      d3.select("#authStatus").attr("class", "auth-status").text("");
+      d3.select("#authModal").classed("open", true);
+    }
+    function closeAuthModal() { d3.select("#authModal").classed("open", false); }
+
+    async function doLogin() {
+      const email = document.getElementById("authEmail").value.trim();
+      const pw = document.getElementById("authPassword").value;
+      const st = d3.select("#authStatus");
+      if (!email || !pw) { st.attr("class", "auth-status err").text("이메일/비밀번호를 입력하세요."); return; }
+      st.attr("class", "auth-status").text("로그인 중...");
+      const { error } = await sb.auth.signInWithPassword({ email: email, password: pw });
+      if (error) { st.attr("class", "auth-status err").text("실패: " + error.message); return; }
+      st.attr("class", "auth-status ok").text("로그인 성공");
+      closeAuthModal();
+    }
+
+    async function doSignup() {
+      const email = document.getElementById("authEmail").value.trim();
+      const pw = document.getElementById("authPassword").value;
+      const st = d3.select("#authStatus");
+      if (!email || !pw) { st.attr("class", "auth-status err").text("이메일/비밀번호를 입력하세요."); return; }
+      if (pw.length < 6) { st.attr("class", "auth-status err").text("비밀번호는 6자 이상이어야 합니다."); return; }
+      st.attr("class", "auth-status").text("가입 중...");
+      const { data, error } = await sb.auth.signUp({ email: email, password: pw });
+      if (error) { st.attr("class", "auth-status err").text("실패: " + error.message); return; }
+      if (data && data.session) {
+        st.attr("class", "auth-status ok").text("가입 & 로그인 완료");
+        closeAuthModal();
+      } else {
+        st.attr("class", "auth-status ok").text("가입 완료! 이메일 인증 후 로그인하세요.");
+      }
+    }
+
+    async function doLogout() {
+      await sb.auth.signOut();
+      currentUser = null;
+      editingId = null;
+      updateAuthUI();
+      if (currentTeam) refreshRoster();
+    }
+
+    document.getElementById("authBtn").addEventListener("click", function () {
+      if (currentUser) doLogout(); else openAuthModal();
+    });
+    document.getElementById("authClose").addEventListener("click", closeAuthModal);
+    document.getElementById("authModal").addEventListener("click", function (e) {
+      if (e.target === this) closeAuthModal();
+    });
+    document.getElementById("loginBtn").addEventListener("click", doLogin);
+    document.getElementById("signupBtn").addEventListener("click", doSignup);
+
+    sb.auth.onAuthStateChange(function (event, session) {
+      currentUser = (session && session.user) ? session.user : null;
+      updateAuthUI();
+      if (currentTeam && document.getElementById("teamModal").classList.contains("open")) refreshRoster();
+    });
+
+    (async function initSession() {
+      const { data } = await sb.auth.getSession();
+      currentUser = (data && data.session && data.session.user) ? data.session.user : null;
+      updateAuthUI();
+    })();
+
+    // 필터 버튼
+    function setActiveFilter(filter) {
+      d3.selectAll(".map-controls .btn").classed("active", function () {
+        return this.dataset.filter === filter;
+      });
+      drawTeams(filter);
+    }
+
+    d3.selectAll(".map-controls .btn").on("click", function () {
+      setActiveFilter(this.dataset.filter);
+    });
+
+    // 카드 클릭: data-team이 있으면 팀 정보 모달, data-filter면 지도 필터
+    d3.selectAll(".card").on("click", function () {
+      const abbr = this.dataset.team;
+      if (abbr) {
+        const team = TEAMS.find(function (t) { return t.abbr === abbr; });
+        if (team) openTeamModal(team);
+        return;
+      }
+      const f = this.dataset.filter;
+      if (f) {
+        setActiveFilter(f);
+        document.getElementById("map-anchor").scrollIntoView({ behavior: "smooth" });
+      }
+    });
+
+    // ===== NBA 개막전 D-DAY 카운트다운 =====
+    const OPENING_DATE = new Date("2026-10-20T00:00:00");
+    const ddayD = document.getElementById("ddayD");
+    const ddayTime = document.getElementById("ddayTime");
+
+    function pad2(n) { return n < 10 ? "0" + n : "" + n; }
+
+    function updateDday() {
+      let diff = OPENING_DATE - new Date();
+      if (diff <= 0) {
+        ddayD.textContent = "D-Day";
+        ddayTime.textContent = "시즌 시작!";
+        return;
+      }
+      const days = Math.floor(diff / 86400000); diff -= days * 86400000;
+      const hours = Math.floor(diff / 3600000); diff -= hours * 3600000;
+      const mins = Math.floor(diff / 60000); diff -= mins * 60000;
+      const secs = Math.floor(diff / 1000);
+      ddayD.textContent = "D-" + (days < 10 ? "0" + days : days);
+      ddayTime.textContent = pad2(hours) + ":" + pad2(mins) + ":" + pad2(secs);
+    }
+    updateDday();
+    setInterval(updateDday, 1000);
+
+    // ===== Lucide 아이콘 초기 렌더 =====
+    if (window.lucide) lucide.createIcons();
+
+    // ===== Motion (GSAP) =====
+    (function () {
+      if (!window.gsap) return;
+      const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (reduce) return;
+      if (window.ScrollTrigger) gsap.registerPlugin(ScrollTrigger);
+      gsap.timeline({ defaults: { ease: "power3.out", duration: 0.7 } })
+        .from(".hero-eyebrow", { y: 20, opacity: 0 })
+        .from(".hero h1", { y: 26, opacity: 0 }, "-=0.45")
+        .from(".hero p", { y: 20, opacity: 0 }, "-=0.45")
+        .from(".btn-pill-outline", { y: 20, opacity: 0 }, "-=0.45");
+      if (window.ScrollTrigger) {
+        gsap.from(".map-wrap", { scrollTrigger: { trigger: ".map-section", start: "top 82%" }, y: 24, opacity: 0, duration: 0.6, ease: "power3.out" });
+        gsap.from(".cards-section h2", { scrollTrigger: { trigger: ".cards-section", start: "top 85%" }, y: 20, opacity: 0, duration: 0.6, ease: "power3.out" });
+        gsap.from(".card", { scrollTrigger: { trigger: ".cards", start: "top 85%" }, y: 24, opacity: 0, stagger: 0.07, duration: 0.6, ease: "power3.out" });
+      }
+    })();
+   </script>
+</body>
+</html>
